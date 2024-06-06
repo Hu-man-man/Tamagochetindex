@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Tamagochat</title>
+		<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+	</head>
+	<body>
+		<div id="app">
+			<div class="tamagochi">
+				<div class="tamagochi-screen">
+					
+					<div v-if="isDead" class="dead-message">
+						Le chat est mort. Rechargez la page.
+					</div>
+					<div class="status">
+						<div class="gauge" v-for="(value, key) in gauges" :key="key">
+							<div class="gauge-label">
+								{{ key.charAt(0).toUpperCase() + key.slice(1) }}
+							</div>
+							<div class="gauge-container">
+								[{{ '#'.repeat(Math.ceil(value / 10)) +
+								'-'.repeat(Math.floor((100 - value) / 10)) }}]
+							</div>
+						</div>
+					</div>
+					<div class="cat-container">
+						<div class="cat" :style="catStyle">{{ animatedCat }}</div>
+						<div class="poops" v-if="poops.length > 0">
+							<div
+								class="poop"
+								v-for="(poop, index) in poops"
+								:key="index"
+								:style="{ transform: `translate(${poop.left}px, ${poop.top}px)` }"
+							>
+								╭&╮
+							</div>
+						</div>
+					</div>
+					<div class="events-container">
+						<div v-if="isSick.value">🤒</div>
+					</div>
+				</div>
+				<div class="actions">
+					<div>
+						🍖
+						<button @click="feed" :disabled="isDead || isResting"></button>
+					</div>
+					<div>
+						🧶
+						<button @click="play" :disabled="isDead || isResting"></button>
+					</div>
+					<div>
+						🩹
+						<button @click="heal" :disabled="isDead || isResting"></button>
+					</div>
+					<div>
+						🧼
+						<button @click="clean" :disabled="isDead"></button>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<script>
+			const { ref, reactive, onMounted, createApp, watch, computed } = Vue;
+
+			createApp({
+				setup() {
+					const frames = [
+						" /\\_/\\  \n( o.o ) \n > ^ <  ",
+						" /\\_/\\  \n( >.< ) \n > ° <  ",
+						" /\\_/\\  \n( o.o ) \n > ^ <  ",
+						" /\\_/\\  \n( o.o ) \n > ^ <  ",
+						" /\\_/\\  \n( o.o ) \n > ^ <  ",
+						" /\\_/\\  \n( o.o ) \n > ^ <  ",
+						" /\\_/\\  \n( o.o ) \n > ^ <  ",
+						" /\\_/\\  \n( o.o ) \n > ^ <  ",
+						" /\\_/\\  \n( o.< ) \n > ^ <  ",
+						" /\\_/\\  \n( o.o ) \n > ^ <  ",
+						" /\\_/\\  \n( o.o ) \n > ^ <  ",
+					];
+					const cat = ref(frames[0]);
+					const frameIndex = ref(0);
+					const faim = ref(100);
+					const joie = ref(100);
+					const energie = ref(100);
+					const santé = ref(100);
+					const isDead = ref(false);
+					const catPosition = ref(82);
+					const catPositionVertical = ref(82); // Déclaration de la position verticale du chat
+					const direction = ref(1);
+					const verticalDirection = ref(1); // Nouvelle variable pour le déplacement vertical
+					const poops = ref([]);
+					const isResting = ref(false);
+					const isSick = ref(false);
+
+					const gauges = reactive({
+						faim: faim.value,
+						joie: joie.value,
+						energie: energie.value,
+						santé: santé.value,
+					});
+
+					const feed = () => {
+						faim.value = Math.min(faim.value + 10, 100);
+						dropPoop();
+					};
+
+					const play = () => {
+						if (energie.value > 0) {
+							joie.value = Math.min(joie.value + 10, 100);
+							energie.value = Math.max(energie.value - 10, 0);
+							dropPoop();
+						}
+					};
+
+					const rest = () => {
+						// Ralentir la vitesse de diminution des valeurs des jauges pendant 5 secondes
+						const restDuration = 5000;
+						const originalDecayRate = 0.7;
+						const restDecayRate = 0.35;
+
+						if (
+							faim.value > 20 &&
+							joie.value > 20 &&
+							!isResting.value
+						) {
+							// Enregistrer les valeurs des jauges d'origine
+							const originalfaimValue = faim.value;
+							const originaljoieValue = joie.value;
+							const originalsantéValue = santé.value;
+
+							// Mettre à jour les valeurs des jauges pendant le repos
+							energie.value = Math.min(energie.value + 70, 100);
+							faim.value = Math.min(faim.value + 5, 100);
+
+							// Changer l'animation pour montrer que le chat se repose
+							isResting.value = true;
+
+							// Attendre la durée de repos
+							setTimeout(() => {
+								// Rétablir les valeurs des jauges à leur état d'origine
+								faim.value = originalfaimValue;
+								joie.value = originaljoieValue;
+								isResting.value = false;
+							}, restDuration);
+						}
+					};
+
+					const sick  = () => {
+						if (!isResting.value) {
+							energie.value = Math.max(energie.value -20, 0);
+							santé.value = Math.max(santé.value -70, 0);
+							isSick.value = true;
+							dropPoop();
+						}
+
+					}
+
+					const heal = () => {
+						santé.value = Math.min(santé.value + 10, 100);
+					};
+
+					const clean = () => {
+						// Mettre à jour la joie en fonction du nombre de poops nettoyés
+						joie.value = Math.min(joie.value + poops.value.length * 20, 100);
+
+						// Mettre à jour la santé en fonction du nombre de poops nettoyés
+						santé.value = Math.min(santé.value + poops.value.length * 10, 100);
+
+						// Effacer la liste des poops
+						poops.value = [];
+					};
+
+					const dropPoop = () => {
+						if (Math.random() < 0.3 || isSick.value) {
+							// Ajouter un nouveau caca à la position actuelle du chat
+							poops.value.push({
+								left: catPosition.value,
+								top: catPositionVertical.value,
+							});
+							joie.value = Math.max(joie.value - 20, 0);
+							isSick.value = false;
+						}
+					};
+
+					const updateCatAnimation = () => {
+						frameIndex.value = (frameIndex.value + 1) % frames.length;
+						cat.value = frames[frameIndex.value];
+					};
+
+					const updateCatStatus = () => {
+						if (
+							faim.value <= 0 ||
+							joie.value <= 0 ||
+							energie.value <= 0 ||
+							santé.value <= 0
+						) {
+							cat.value = " /\\_/\\  \n( x.x ) \n > ^ <  ";
+							isDead.value = true;
+						} else if (isResting.value) {
+							cat.value = " /\\_/\\      \n( -.- ) zzz \n > ° <      ";
+						} else if (
+							faim.value < 20 ||
+							joie.value < 20 ||
+							energie.value < 20 ||
+							santé.value < 20
+						) {
+							cat.value = " /\\_/\\  \n( x.o ) \n > - <  ";
+						} else if ( santé.value < 50){
+							cat.value = " /\\_/\\  \n( >.< ) \n > ~ <  ";
+						} else {
+							updateCatAnimation();
+							
+						}
+					};
+
+					const moveCat = () => {
+						const changeDirectionProbability = 0.1; // Probabilité de changer de direction
+
+						
+						if (!isResting.value) {
+							// Changer de direction horizontalement
+							if (
+								Math.random() < changeDirectionProbability ||
+								catPosition.value >= 165 ||
+								catPosition.value <= 0
+							) {
+								direction.value *= -1;
+							}
+
+							// Changer de direction verticalement
+							if (
+								Math.random() < changeDirectionProbability ||
+								catPositionVertical.value >= 165 || // Utiliser catPositionVertical pour la condition verticale
+								catPositionVertical.value <= 10 // Utiliser catPositionVertical pour la condition verticale
+							) {
+								verticalDirection.value *= -1; // Changer la direction verticale du chat
+							}
+
+							// Mettre à jour la position horizontale du chat
+							catPosition.value += direction.value * 10;
+
+							// Mettre à jour la position verticale du chat
+							catPositionVertical.value += verticalDirection.value * 10; // Utiliser catPositionVertical pour la position verticale
+
+							// Limiter la position du chat entre 0 et 100
+							catPosition.value = Math.max(0, Math.min(165, catPosition.value));
+							// Limiter la position verticale du chat entre 0 et 100
+							catPositionVertical.value = Math.max(10,Math.min(175, catPositionVertical.value)); 
+						}
+					};
+					
+					onMounted(() => {
+						setInterval(() => {
+							if (!isDead.value) {
+								faim.value = Math.max(faim.value - 1, 0);
+								joie.value = Math.max(joie.value - 0.5, 0);
+								energie.value = Math.max(energie.value - 0.7, 0);
+								santé.value = Math.max(santé.value - 0.3, 0);
+								updateCatStatus();
+								moveCat();
+							}
+						}, 250);
+
+						setInterval(rest, Math.random() * (20000 - 10000) + 10000);
+						setInterval(sick, Math.random() * (50000 - 10000) + 10000);
+					});
+
+					watch([faim, joie, energie, santé], (newValues) => {
+						gauges.faim = newValues[0];
+						gauges.joie = newValues[1];
+						gauges.energie = newValues[2];
+						gauges.santé = newValues[3];
+					});
+
+					return {
+						animatedCat: cat,
+						faim,
+						joie,
+						energie,
+						santé,
+						gauges,
+						isDead,
+						isResting,
+						isSick,
+						poops,
+						catStyle: computed(() => ({
+							transform: `translate(${catPosition.value}px, ${catPositionVertical.value}px)`, // Modification pour le déplacement vertical
+							transition: "transform 1s",
+						})),
+						feed,
+						play,
+						rest,
+						heal,
+						clean,
+					};
+				},
+			}).mount("#app");
+		</script>
+
+		<style>
+			.tamagochi {
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				justify-content: center;
+				font-family: "Courier New", Courier, monospace;
+				position: relative;
+				background-color:gray;
+				height: 100vh;
+			}
+
+			.tamagochi-screen {
+				position: relative;
+				border: 1px solid;
+				width: 500px;
+				height: 243px;
+				background-color: blue;
+				color: antiquewhite;
+				border-radius: 10px;
+			}
+
+			.cat-container {
+				width: 230px;
+				height: 230px;
+				display: flex;
+				position: relative;
+				top: 5px;
+				left: 135px;
+				border: 1px solid;
+				overflow: hidden;
+			}
+
+			.cat {
+				font-size: 16px;
+				white-space: pre;
+				text-align: center;
+				line-height: 1.2;
+			}
+
+			.poops {
+				display: flex;
+				gap: 10px;
+				margin: 10px;
+				position: absolute;
+			}
+
+			.poop {
+				font-size: 20px;
+			}
+
+			.status {
+				margin: 10px;
+				width: 80%;
+				position: absolute;
+				
+			}
+
+			.gauge {
+				margin: 10px 0;
+			}
+
+			.gauge-label {
+				font-weight: bold;
+				margin-bottom: 5px;
+			}
+
+			.actions {
+				display: flex;
+				gap: 10px;
+				width: 100%;
+				justify-content: center;
+			}
+
+			.actions > div {
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				font-size: 30px;
+			}
+
+			.events-container {
+				margin: 10px;
+				width: 22%;
+				position: absolute;
+				right: 0;
+				top: 0;
+				display: flex;
+				gap: 10px;
+				font-size:xx-large;
+			}
+
+			button {
+				width: 40px;
+				height: 40px;
+				font-size: 16px;
+				cursor: pointer;
+				border-radius: 50%;
+			}
+
+			.dead-message {
+				font-size: 20px;
+				color: red;
+				text-align: center;
+				margin: 20px;
+				border: 1px solid;
+				background-color: blue;
+				position: absolute;
+				left:25%;
+				right:25%
+			}
+		</style>
+	</body>
+</html>
