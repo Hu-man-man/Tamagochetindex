@@ -237,12 +237,18 @@
 								energie.value = Math.max(energie.value - 0.7, 0);
 								santé.value = Math.max(santé.value - 0.3, 0);
 								updateCatStatus();
+							}
+						}, 250);
+						setInterval(() => {
+							if (!isDead.value) {
 								moveCat();
 							}
-						}, 300);
-
-						setInterval(rest, Math.random() * (20000 - 10000) + 10000);
-						setInterval(sick, Math.random() * (50000 - 10000) + 10000);
+						}, 500);
+						if (!isDead.value) {
+							setInterval(rest, Math.random() * (20000 - 10000) + 10000);
+							setInterval(sick, Math.random() * (50000 - 20000) + 20000);
+								
+						}
 					});
 
 					watch([faim, joie, energie, santé, isSick], (newValues) => {
